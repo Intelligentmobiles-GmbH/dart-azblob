@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:http_parser/http_parser.dart';
+import 'package:path/path.dart';
 
 /// Blob type
 enum BlobType {
@@ -32,6 +33,7 @@ class AzureStorage {
   static final String defaultEndpointsProtocol = 'DefaultEndpointsProtocol';
   static final String endpointSuffix = 'EndpointSuffix';
   static final String accountName = 'AccountName';
+  static final String blobEndpoint = 'BlobEndpoint';
 
   // ignore: non_constant_identifier_names
   static final String AccountKey = 'AccountKey';
@@ -63,11 +65,35 @@ class AzureStorage {
     var scheme = config[defaultEndpointsProtocol] ?? 'https';
     var suffix = config[endpointSuffix] ?? 'core.windows.net';
     var name = config[accountName];
-    return Uri(
-        scheme: scheme,
-        host: '$name.blob.$suffix',
-        path: path,
-        queryParameters: queryParameters);
+    final String? endpoint = config[blobEndpoint];
+
+    final Uri defaultUri = Uri(
+      scheme: scheme,
+      host: '$name.blob.$suffix',
+      path: path,
+      queryParameters: queryParameters,
+    );
+
+    if (endpoint == null || endpoint.isEmpty) {
+      return defaultUri;
+    }
+
+    // Parse the endpoint for the Uri.
+    final Uri? endpointUri = Uri.tryParse(endpoint);
+    if (endpointUri == null) {
+      return defaultUri;
+    }
+
+    final String endpointPath = endpointUri.path;
+    String finalPath = path;
+    if (endpointPath.isNotEmpty) {
+      finalPath = normalize("$endpointPath/$path");
+    }
+
+    return endpointUri.replace(
+      path: finalPath,
+      queryParameters: queryParameters,
+    );
   }
 
   String _canonicalHeaders(Map<String, String> headers) {
